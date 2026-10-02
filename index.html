@@ -485,8 +485,16 @@
 <header>
   <div class="eyebrow">Sentence Recomposition · 句子题错题本</div>
   <h1>句子重组训练 · 20题免费试用</h1>
-  <div class="sub">免费账号可完整练习前20题，并使用到期复习。激活后解锁全部265题、考前速刷、收藏库、薄弱点、错题PDF导出和语法手册；同一邮箱可在手机与电脑同步。</div>
-  <div class="cloud-panel">
+  <div class="sub">无需登录即可完整练习前20题，并使用到期复习。购买后先验证一人一码的激活密钥，再用邮箱登录；激活后解锁全部265题、考前速刷、收藏库、薄弱点、错题PDF导出和语法手册，同一邮箱可在手机与电脑同步。</div>
+  <div class="license-panel" id="license-panel">
+    <div class="license-copy">
+      <strong id="license-status">免费试用：前20题（含到期复习）</strong>
+      <span id="license-help">免费试用不需要邮箱。购买后请先输入激活密钥，再使用邮箱登录。</span>
+    </div>
+    <input class="license-input" id="license-input" type="text" autocomplete="off" spellcheck="false" placeholder="TOEFL-XXXXXX-XXXXXX-XXXXXX-XXXXXX">
+    <button class="btn btn-primary" id="license-activate-btn" type="button">验证密钥并继续登录</button>
+  </div>
+  <div class="cloud-panel" id="cloud-panel" hidden>
     <div class="cloud-row">
       <div class="cloud-status" id="cloud-status"><span class="sync-dot" id="sync-dot"></span><strong>本地模式</strong> · 配置云同步后可跨设备使用</div>
       <input class="cloud-email" id="cloud-email" type="email" autocomplete="email" placeholder="输入邮箱，接收登录链接">
@@ -498,15 +506,7 @@
       <button class="btn btn-ghost cloud-btn" id="grammar-guide-btn" type="button">语法手册 PDF 🔒</button>
       <input id="import-progress-file" type="file" accept="application/json,.json" hidden>
     </div>
-    <div class="cloud-help" id="cloud-help">未配置时仍可在当前浏览器正常使用；配置方法见部署包里的《GitHub部署说明》。</div>
-  </div>
-  <div class="license-panel" id="license-panel">
-    <div class="license-copy">
-      <strong id="license-status">免费试用：前20题（含到期复习）</strong>
-      <span id="license-help">购买后请先用邮箱登录，再输入一人一码的激活密钥。</span>
-    </div>
-    <input class="license-input" id="license-input" type="text" autocomplete="off" spellcheck="false" placeholder="TOEFL-XXXXXX-XXXXXX-XXXXXX-XXXXXX">
-    <button class="btn btn-primary" id="license-activate-btn" type="button">激活全部功能</button>
+    <div class="cloud-help" id="cloud-help">密钥已通过初步验证。请输入购买时使用的邮箱；发送后60秒内不能重复发送。</div>
   </div>
 </header>
 
@@ -2303,6 +2303,9 @@ const TAGSTAT_KEY = "toefl_commercial_tagstats_v1";
 const NEWQUOTA_KEY = "toefl_commercial_newquota_v1";
 const FAVORITES_KEY = "toefl_commercial_favorites_v1";
 const SPRINT_KEY = "toefl_commercial_sprint_v1";
+const PENDING_LICENSE_KEY = "toefl_pending_license_v1";
+const LOGIN_COOLDOWN_KEY = "toefl_login_cooldown_until_v1";
+const LOGIN_COOLDOWN_MS = 60*1000;
 const MINUTE = 60*1000;
 const HOUR = 60*MINUTE;
 const DAY = 24*HOUR;
@@ -2316,6 +2319,7 @@ let cloudUser = null;
 let cloudApplyInProgress = false;
 let cloudPushTimer = null;
 let cloudSyncRunning = false;
+let loginCooldownTimer = null;
 
 function todayStr(){
   const d = new Date();
@@ -2480,6 +2484,71 @@ function showLicenseMessage(message, isError=false){
   }
 }
 
+function normalizedLicenseKey(value){
+  return String(value || "").trim().toUpperCase();
+}
+
+function getPendingLicenseKey(){
+  try{ return normalizedLicenseKey(localStorage.getItem(PENDING_LICENSE_KEY)); }
+  catch(e){ return ""; }
+}
+
+function setPendingLicenseKey(key){
+  const normalized = normalizedLicenseKey(key);
+  try{
+    if(normalized) localStorage.setItem(PENDING_LICENSE_KEY, normalized);
+    else localStorage.removeItem(PENDING_LICENSE_KEY);
+  }catch(e){}
+  const input = document.getElementById("license-input");
+  if(input && normalized) input.value = normalized;
+}
+
+function licenseKeyLooksComplete(key){
+  return /^TOEFL-[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}-[A-Z0-9]{6}$/.test(normalizedLicenseKey(key));
+}
+
+async function precheckLicense(key, email=""){
+  if(!cloudClient) throw new Error("云端服务尚未连接，请刷新后重试");
+  const {data, error} = await cloudClient.rpc("check_license_before_login", {
+    p_key: normalizedLicenseKey(key),
+    p_email: String(email || "").trim().toLowerCase()
+  });
+  if(error) throw error;
+  if(!data || !data.ok) throw new Error((data && data.message) || "密钥不可用");
+  return data;
+}
+
+async function prepareLicenseLogin(){
+  if(fullAccess) return;
+  if(cloudUser){
+    await redeemLicense();
+    return;
+  }
+  const input = document.getElementById("license-input");
+  const key = normalizedLicenseKey(input ? input.value : "");
+  if(!licenseKeyLooksComplete(key)){
+    showLicenseMessage("请输入完整激活密钥，再使用邮箱登录。", true);
+    return;
+  }
+  const button = document.getElementById("license-activate-btn");
+  if(button) button.disabled = true;
+  showLicenseMessage("正在验证密钥……");
+  try{
+    await precheckLicense(key);
+    setPendingLicenseKey(key);
+    updateCloudControls();
+    showLicenseMessage("密钥初步验证成功。请在下方输入需要绑定的邮箱。", false);
+    const email = document.getElementById("cloud-email");
+    if(email) email.focus();
+  }catch(err){
+    setPendingLicenseKey("");
+    updateCloudControls();
+    showLicenseMessage("密钥验证失败：" + (err.message || "请核对密钥"), true);
+  }finally{
+    if(button) button.disabled = fullAccess;
+  }
+}
+
 function resetToTrialAccess(){
   fullAccess = false;
   fullBankLoaded = false;
@@ -2504,8 +2573,13 @@ function updateLicenseUI(){
       el.title = fullAccess ? "" : "激活后解锁";
     }
   }
-  if(activate) activate.disabled = !cloudUser || fullAccess;
-  if(!fullAccess && !cloudUser) showLicenseMessage("购买后请先用邮箱登录，再输入一人一码的激活密钥。");
+  if(activate){
+    activate.disabled = fullAccess;
+    activate.textContent = cloudUser ? "激活全部功能" : "验证密钥并继续登录";
+  }
+  if(!fullAccess && !cloudUser && !getPendingLicenseKey()){
+    showLicenseMessage("免费试用不需要邮箱。购买后请先输入激活密钥，再使用邮箱登录。");
+  }
 }
 
 async function loadFullQuestionBank(){
@@ -2561,13 +2635,13 @@ async function refreshLicenseAccess(){
   }
 }
 
-async function redeemLicense(){
+async function redeemLicense(keyOverride=""){
   if(!cloudClient || !cloudUser){
-    showLicenseMessage("请先在上方输入邮箱并完成登录，再激活密钥。", true);
+    showLicenseMessage("请先验证密钥，再输入邮箱完成登录。", true);
     return;
   }
   const input = document.getElementById("license-input");
-  const key = (input ? input.value : "").trim().toUpperCase();
+  const key = normalizedLicenseKey(keyOverride || getPendingLicenseKey() || (input ? input.value : ""));
   if(!key){
     showLicenseMessage("请输入完整激活密钥。", true);
     return;
@@ -2579,13 +2653,15 @@ async function redeemLicense(){
     const {data, error} = await cloudClient.rpc("redeem_license", {p_key:key});
     if(error) throw error;
     if(!data || !data.ok) throw new Error((data && data.message) || "密钥不可用");
+    setPendingLicenseKey("");
     if(input) input.value = "";
     await refreshLicenseAccess();
     await syncCloudProgress();
   }catch(err){
     showLicenseMessage("激活失败：" + (err.message || "请核对密钥"), true);
   }finally{
-    if(button) button.disabled = !cloudUser || fullAccess;
+    if(button) button.disabled = fullAccess;
+    updateCloudControls();
   }
 }
 
@@ -2625,15 +2701,45 @@ function setCloudStatus(message, state="offline"){
 }
 
 function updateCloudControls(){
+  const panel = document.getElementById("cloud-panel");
   const login = document.getElementById("cloud-login-btn");
   const email = document.getElementById("cloud-email");
   const sync = document.getElementById("cloud-sync-btn");
   const logout = document.getElementById("cloud-logout-btn");
   const configured = cloudIsConfigured();
-  if(login) login.hidden = !!cloudUser || !configured;
-  if(email) email.hidden = !!cloudUser || !configured;
+  const loginUnlocked = !!getPendingLicenseKey();
+  if(panel) panel.hidden = !cloudUser && (!configured || !loginUnlocked);
+  if(login) login.hidden = !!cloudUser || !configured || !loginUnlocked;
+  if(email) email.hidden = !!cloudUser || !configured || !loginUnlocked;
   if(sync) sync.hidden = !cloudUser;
   if(logout) logout.hidden = !cloudUser;
+  updateLoginCooldownButton();
+}
+
+function getLoginCooldownRemaining(){
+  try{
+    const until = Number(localStorage.getItem(LOGIN_COOLDOWN_KEY) || 0);
+    return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  }catch(e){ return 0; }
+}
+
+function updateLoginCooldownButton(){
+  const button = document.getElementById("cloud-login-btn");
+  if(!button) return;
+  const remaining = getLoginCooldownRemaining();
+  button.disabled = remaining > 0;
+  button.textContent = remaining > 0 ? `${remaining}秒后可重发` : "发送登录链接";
+  if(remaining <= 0 && loginCooldownTimer){
+    clearInterval(loginCooldownTimer);
+    loginCooldownTimer = null;
+  }
+}
+
+function startLoginCooldown(){
+  try{ localStorage.setItem(LOGIN_COOLDOWN_KEY, String(Date.now() + LOGIN_COOLDOWN_MS)); }catch(e){}
+  if(loginCooldownTimer) clearInterval(loginCooldownTimer);
+  updateLoginCooldownButton();
+  loginCooldownTimer = setInterval(updateLoginCooldownButton, 1000);
 }
 
 function localPayload(){
@@ -2808,6 +2914,16 @@ async function syncCloudProgress(){
 
 async function sendMagicLink(){
   if(!cloudClient) return;
+  if(getLoginCooldownRemaining() > 0){
+    updateLoginCooldownButton();
+    setCloudStatus("<strong>请稍候</strong> · 发送登录链接后60秒内不能重复发送。", "error");
+    return;
+  }
+  const pendingKey = getPendingLicenseKey();
+  if(!pendingKey){
+    setCloudStatus("<strong>请先输入并验证激活密钥</strong>", "error");
+    return;
+  }
   const emailEl = document.getElementById("cloud-email");
   const email = (emailEl ? emailEl.value : "").trim();
   if(!email){
@@ -2818,11 +2934,18 @@ async function sendMagicLink(){
     setCloudStatus("<strong>请先从 GitHub Pages 网站打开</strong>，本地文件不能完成邮箱回跳。", "error");
     return;
   }
-  setCloudStatus("<strong>正在发送登录邮件…</strong>", "syncing");
-  const redirectTo = location.origin + location.pathname;
-  const {error} = await cloudClient.auth.signInWithOtp({email, options:{emailRedirectTo:redirectTo}});
-  if(error) setCloudStatus(`<strong>发送失败</strong> · ${error.message}`, "error");
-  else setCloudStatus("<strong>登录邮件已发送</strong> · 点击邮件里的链接后会回到本网站。", "online");
+  setCloudStatus("<strong>正在核对卡密和邮箱…</strong>", "syncing");
+  try{
+    await precheckLicense(pendingKey, email);
+    startLoginCooldown();
+    setCloudStatus("<strong>正在发送登录邮件…</strong>", "syncing");
+    const redirectTo = location.origin + location.pathname;
+    const {error} = await cloudClient.auth.signInWithOtp({email, options:{emailRedirectTo:redirectTo}});
+    if(error) throw error;
+    setCloudStatus("<strong>登录邮件已发送</strong> · 点击邮件里的链接后会自动绑定卡密并回到本网站。", "online");
+  }catch(err){
+    setCloudStatus(`<strong>发送失败</strong> · ${err.message || "请检查卡密和邮箱"}`, "error");
+  }
 }
 
 function exportProgressFile(){
@@ -2875,9 +2998,10 @@ async function initCloudSync(){
     cloudUser = session.user;
     updateCloudControls();
     await refreshLicenseAccess();
+    if(!fullAccess && getPendingLicenseKey()) await redeemLicense(getPendingLicenseKey());
     await syncCloudProgress();
   } else {
-    setCloudStatus("<strong>云同步已配置</strong> · 输入邮箱登录后即可跨设备同步", "offline");
+    setCloudStatus("<strong>免费试用无需登录</strong> · 购买后先验证激活密钥，再用邮箱登录", "offline");
     updateCloudControls();
   }
   cloudClient.auth.onAuthStateChange((event, nextSession)=>{
@@ -2888,6 +3012,7 @@ async function initCloudSync(){
         updateCloudControls();
         if(changedUser || event === "SIGNED_IN") {
           await refreshLicenseAccess();
+          if(!fullAccess && getPendingLicenseKey()) await redeemLicense(getPendingLicenseKey());
           await syncCloudProgress();
         }
       } else if(event === "SIGNED_OUT"){
@@ -3847,8 +3972,8 @@ document.getElementById("import-progress-file").addEventListener("change", async
   await importProgressFile(file);
   ev.target.value = "";
 });
-document.getElementById("license-activate-btn").addEventListener("click", ()=>redeemLicense());
-document.getElementById("license-input").addEventListener("keydown", ev=>{ if(ev.key === "Enter") redeemLicense(); });
+document.getElementById("license-activate-btn").addEventListener("click", ()=>prepareLicenseLogin());
+document.getElementById("license-input").addEventListener("keydown", ev=>{ if(ev.key === "Enter") prepareLicenseLogin(); });
 document.getElementById("grammar-guide-btn").addEventListener("click", ()=>openPaidGrammarGuide());
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState === "visible" && cloudUser) syncCloudProgress();
