@@ -615,10 +615,10 @@
     <div class="weak-headline">按弱点直接练</div>
     <div class="weak-sub">专项练习不占当天按组开放的新题数量，但答案仍会计入记忆曲线和薄弱点统计。</div>
     <div class="practice-set-row">
-      <button class="practice-set" data-practice-tags="word_order_basic" data-practice-label="基础语序专项 · 50 题">基础语序 50 题</button>
-      <button class="practice-set" data-practice-tags="rel_that_subject,rel_contact,reduced_relclause" data-practice-label="长主语与定语从句专项 · 82 题">长主语/定语从句 82 题</button>
-      <button class="practice-set" data-practice-tags="nounclause" data-practice-label="名词性从句专项 · 58 题">名词性从句 58 题</button>
-      <button class="practice-set" data-practice-tags="question_word_order" data-practice-label="疑问句语序专项 · 30 题">疑问句语序 30 题</button>
+      <button class="practice-set" data-practice-tags="word_order_basic" data-practice-label="基础语序专项 · 56 题">基础语序 56 题</button>
+      <button class="practice-set" data-practice-tags="rel_that_subject,rel_contact,rel_where,reduced_relclause" data-practice-label="长主语与定语从句专项 · 102 题">长主语/定语从句 102 题</button>
+      <button class="practice-set" data-practice-tags="nounclause" data-practice-label="名词性从句专项 · 85 题">名词性从句 85 题</button>
+      <button class="practice-set" data-practice-tags="question_word_order" data-practice-label="疑问句语序专项 · 33 题">疑问句语序 33 题</button>
     </div>
   </div>
 
@@ -1934,7 +1934,7 @@ const TRIAL_QUESTIONS = [
   }
 ];
 let QUESTIONS = TRIAL_QUESTIONS.slice();
-const FULL_QUESTION_COUNT = 265;
+const FULL_QUESTION_COUNT = 306;
 let fullAccess = false;
 let fullBankLoaded = false;
 
@@ -2037,6 +2037,12 @@ const GRAMMAR_POINTS = {
     coreEN: "When the relative pronoun is the object of the embedded clause, it can be dropped in everyday English (or kept as 'that') — the clause attaches directly to the noun it modifies.",
     tip: "易错点：把从句的动词和主句的动词顺序搞混，或者被“看起来眼熟”的干扰词块骗了；有没有显性写出 that，语法结构是一样的。"
   },
+  rel_where: {
+    title: "where 引导的地点定语从句",
+    coreZH: "关系副词 where 紧跟地点先行词，相当于 in/at which，并在从句中作地点状语；整个从句仍然紧贴被修饰名词。",
+    coreEN: "The relative adverb 'where' follows a place antecedent, means 'in/at which', and functions as a place adverb inside the relative clause.",
+    tip: "易错点：把 where 从句误当成独立问句，或在长主语尚未结束时提前放入主句谓语。"
+  },
   rel_that_subject: {
     title: "定语从句中 that 作从句主语",
     coreZH: "当关系代词 that 在从句中充当主语时，后面直接接从句自己的谓语，整个「先行词+从句」合起来才是主句里那个位置真正的成分（可以是主语、宾语，也可以是表语）。",
@@ -2097,6 +2103,7 @@ const GRAMMAR_POINTS = {
 const GRAMMAR_GUIDE = {
   word_order_basic: {code:"G01", title:"基础语序与主谓宾骨架", pdfTitle:"G01 基础语序：先定主谓宾 / 主系表", action:"先找有限谓语，只排 S + V + O/C，再挂地点、时间和长修饰语。"},
   rel_that_subject: {code:"G02", title:"that / who 作定语从句主语", pdfTitle:"G02 主语关系从句与长主语封口", action:"把“先行词 + that/who 从句”整体括起来，封口后再放主句谓语。"},
+  rel_where: {code:"G02", title:"where 地点定语从句", pdfTitle:"G02 主语关系从句与长主语封口", action:"where 紧跟地点先行词；把整个 where 从句封口后，再继续主句。"},
   rel_contact: {code:"G03", title:"宾语关系从句与关系代词省略", pdfTitle:"G03 宾语关系从句：noun + (that) + S + V", action:"先找被修饰名词，再检查后面的 S + V 是否缺宾语；缺的宾语就是先行词。"},
   nounclause: {code:"G04", title:"宾语从句与嵌入问句", pdfTitle:"G04 名词性从句：内部保持陈述语序", action:"只让最外层问句倒装；进入 if/whether/wh 从句后恢复主语 + 谓语。"},
   question_word_order: {code:"G05", title:"独立疑问句语序", pdfTitle:"G05 疑问句：wh + 助动词/be + 主语", action:"先判断疑问词是否作主语；不作主语时，把助动词或 be 放到主语前。"},
@@ -2124,6 +2131,13 @@ const DEEP_EXPLANATION = {
     attach:"定语从句回答的是“哪一个/什么样的名词”，所以必须紧贴被修饰名词。关系代词在从句中作宾语时可以省略，但从句的位置不能移动。",
     reject:"不能看见两个都像动词的词块就随意排列：一个属于定语从句，一个属于主句。先给从句封口，再接主句谓语。",
     rule:"找名词 → 问“哪一个” → 把修饰它的 S + V 紧贴在后面 → 封口后继续主句。"
+  },
+  rel_where: {
+    formula:"地点先行词 + [where + 从句主语 + 从句谓语] + 主句其余部分",
+    main:"先暂时拿掉 where 从句，确认剩下的主句有完整主语和谓语；再把 where 从句放回地点名词之后。",
+    attach:"where 相当于 in/at which，在从句中作地点状语。它回答‘在哪个地方’，因此紧贴 drawer、department 等地点先行词。",
+    reject:"where 从句不是独立问句，内部不倒装；把它移离地点先行词，或在从句结束前放入主句谓语，都会让修饰关系断裂。",
+    rule:"找到地点名词 → 紧接 where + S + V → 从句封口 → 再继续主句。"
   },
   rel_that_subject: {
     formula:"先行词 + [that/who + 从句谓语...] + 主句谓语/表语",
@@ -2218,14 +2232,16 @@ function mainWithoutTaggedClause(q, tag){
 }
 
 function specificAttachmentExplanation(q){
-  if(q.weakTag==="rel_that_subject" || q.weakTag==="rel_contact"){
+  if(q.weakTag==="rel_that_subject" || q.weakTag==="rel_contact" || q.weakTag==="rel_where"){
     const antecedent = relativeAntecedent(q);
     const clause = segmentText(q,"relclause") || "定语从句";
     const main = mainWithoutTaggedClause(q,"relclause");
     const itNote = /\bit\b/i.test(q.answer.slice(0,Math.max(0,q.answer.indexOf(clause))))
       ? " 本句前面虽然有 it，但 it 是代词，已经承担自己的句子成分，不能作为限制性 that 从句的先行词；要看从句的意思具体描述哪一个名词。"
       : "";
-    const role = q.weakTag==="rel_that_subject"
+    const role = q.weakTag==="rel_where"
+      ? "这里的 where 相当于 in/at which，在从句中作地点状语，不能省略。"
+      : q.weakTag==="rel_that_subject"
       ? "这里的关系词在从句中作主语，所以后面直接接从句谓语。"
       : "这里的关系词在从句中作宾语，因而可以省略；省略的只是关系词，不是从句位置。";
     return {
@@ -2264,7 +2280,7 @@ function chunkComparisonHTML(q, correct){
 function deepExplanationHTML(q, correct){
   const base = DEEP_EXPLANATION[q.weakTag] || DEEP_EXPLANATION.word_order_basic;
   const specific = specificAttachmentExplanation(q);
-  const isClause = ["rel_that_subject","rel_contact","nounclause","adverbial_clause"].includes(q.weakTag);
+  const isClause = ["rel_that_subject","rel_contact","rel_where","nounclause","adverbial_clause"].includes(q.weakTag);
   const placementTitle = isClause ? "从句到底接在哪里？" : "后面的成分接在哪里？";
   return `<div class="deep-explanation">
     <div class="deep-title">逐层拆解｜不是背答案，而是找到每一块的位置</div>
